@@ -24,6 +24,8 @@ final class BrowserStore: NSObject, ObservableObject {
     @Published var defaultPrivateModeEnabled: Bool = false {
         didSet { schedulePersistSession() }
     }
+    @Published var canGoBack: Bool = false
+    @Published var canGoForward: Bool = false
 
     private let webViewPool = WebViewPool(maxLiveViews: 6)
     private var tabIDByWebView: [ObjectIdentifier: UUID] = [:]
@@ -64,7 +66,11 @@ final class BrowserStore: NSObject, ObservableObject {
         updateTab(tabID) { $0.lastAccessedAt = .now }
         selectedTabID = tabID
         guard let tab = tabs.first(where: { $0.id == tabID }) else { return }
-        _ = webView(for: tab.id, initialURL: tab.currentURL)
+        if let webView = webViewPool.existingWebView(for: tabID) {
+            updateNavigationState(for: webView)
+        } else {
+            _ = webView(for: tab.id, initialURL: tab.currentURL)
+        }
         trimInactiveTabs()
     }
 
@@ -142,6 +148,76 @@ final class BrowserStore: NSObject, ObservableObject {
         return webView(for: selectedTabID, initialURL: tab.currentURL)
     }
 
+    func navigateSelectedTab(input: String) {
+        guard let selectedTabID else { return }
+        navigate(tabID: selectedTabID, input: input)
+    }
+
+    func navigate(tabID: UUID, input: String) {
+        guard let url = Self.resolveNavigationURL(from: input) else { return }
+        guard let tab = tabs.first(where: { $0.id == tabID }) else { return }
+
+        updateTab(tabID) {
+            $0.currentURL = url
+            $0.baseURL = $0.isPinned ? $0.baseURL : url
+            $0.lastAccessedAt = .now
+        }
+
+        let webView = webView(for: tab.id, initialURL: tab.currentURL)
+        webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 30))
+        updateNavigationState(for: webView)
+    }
+
+    func goBackSelectedTab() {
+        guard let webView = activeWebView(), webView.canGoBack else { return }
+        webView.goBack()
+        updateNavigationState(for: webView)
+    }
+
+    func goForwardSelectedTab() {
+        guard let webView = activeWebView(), webView.canGoForward else { return }
+        webView.goForward()
+        updateNavigationState(for: webView)
+    }
+
+    func reloadSelectedTab() {
+        guard let webView = activeWebView() else { return }
+        webView.reload()
+    }
+
+    func findInSelectedTab(_ query: String) {
+        guard let webView = activeWebView() else { return }
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return }
+
+        let escaped = trimmedQuery
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let js = "window.find(\"\(escaped)\", false, false, true, false, false, false);"
+        webView.evaluateJavaScript(js)
+    }
+
+    static func resolveNavigationURL(from rawInput: String) -> URL? {
+        let trimmed = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let directURL = URL(string: trimmed), let scheme = directURL.scheme, !scheme.isEmpty {
+            return directURL
+        }
+
+        if trimmed.contains(" ") {
+            let query = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
+            return URL(string: "https://duckduckgo.com/?q=\(query)")
+        }
+
+        if trimmed.contains(".") {
+            return URL(string: "https://\(trimmed)")
+        }
+
+        let query = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
+        return URL(string: "https://duckduckgo.com/?q=\(query)")
+    }
+
     private func schedulePersistSession() {
         persistenceTask?.cancel()
         let snapshot = BrowserSessionSnapshot(
@@ -182,6 +258,7 @@ final class BrowserStore: NSObject, ObservableObject {
         let isPrivate = tabs.first(where: { $0.id == tabID })?.isPrivate ?? false
         let webView = webViewPool.webView(for: tabID, initialURL: initialURL, isPrivate: isPrivate, navigationDelegate: self, uiDelegate: self)
         tabIDByWebView[ObjectIdentifier(webView)] = tabID
+        updateNavigationState(for: webView)
         return webView
     }
 
@@ -191,6 +268,11 @@ final class BrowserStore: NSObject, ObservableObject {
             protectedIDs.insert(selectedTabID)
         }
         webViewPool.trimIfNeeded(protectedTabIDs: protectedIDs)
+    }
+
+    private func updateNavigationState(for webView: WKWebView) {
+        canGoBack = webView.canGoBack
+        canGoForward = webView.canGoForward
     }
 
     private func isFolderPinned(tabID: UUID, folderID: UUID?) -> Bool {
@@ -218,6 +300,10 @@ extension BrowserStore: WKNavigationDelegate {
                 tab.title = pageTitle
             }
             tab.lastAccessedAt = .now
+        }
+
+        if selectedTabID == tabID {
+            updateNavigationState(for: webView)
         }
     }
 

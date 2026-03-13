@@ -14,6 +14,7 @@ The following foundational items have now been started in code:
 - Automatic reload when `WKWebView` web content process terminates.
 - Keyboard shortcuts for frequent tab actions.
 - Private-tab baseline via non-persistent `WKWebsiteDataStore`, plus manual clear-data control for regular browsing data.
+- Address bar navigation controls (back/forward/reload) and in-page find baseline.
 
 These improve baseline usability but do not yet close the production-readiness gaps listed below.
 

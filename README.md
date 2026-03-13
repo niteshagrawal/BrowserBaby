@@ -24,6 +24,7 @@ For a concrete gap analysis and milestone plan, see `docs/daily-driver-readiness
 - Privacy baseline: private tabs now use non-persistent website data storage, with default private-mode toggle and a command to clear regular browsing data.
 - Debounced session persistence to reduce disk write churn during heavy tab/navigation activity.
 - Introduced unit-test targets for tab close semantics and session/model backward compatibility.
+- Browser controls baseline: address bar navigation, back/forward/reload actions, and in-page find.
 
 ## Included in this repo
 

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var store: BrowserStore
+    @State private var addressInput = ""
+    @State private var findInput = ""
 
     private var selectionBinding: Binding<UUID?> {
         Binding(
@@ -45,7 +47,51 @@ struct ContentView: View {
                let selectedTab = store.tabs.first(where: { $0.id == selectedID }),
                let webView = store.activeWebView() {
                 WebViewContainer(webView: webView)
+                    .onAppear {
+                        addressInput = selectedTab.currentURL.absoluteString
+                    }
+                    .onChange(of: selectedID) { _ in
+                        addressInput = selectedTab.currentURL.absoluteString
+                        findInput = ""
+                    }
+                    .onChange(of: selectedTab.currentURL) { newURL in
+                        addressInput = newURL.absoluteString
+                    }
                     .toolbar {
+                        Button {
+                            store.goBackSelectedTab()
+                        } label: {
+                            Label("Back", systemImage: "chevron.backward")
+                        }
+                        .disabled(!store.canGoBack)
+
+                        Button {
+                            store.goForwardSelectedTab()
+                        } label: {
+                            Label("Forward", systemImage: "chevron.forward")
+                        }
+                        .disabled(!store.canGoForward)
+
+                        Button {
+                            store.reloadSelectedTab()
+                        } label: {
+                            Label("Reload", systemImage: "arrow.clockwise")
+                        }
+
+                        TextField("Search or enter website name", text: $addressInput)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(minWidth: 360)
+                            .onSubmit {
+                                store.navigateSelectedTab(input: addressInput)
+                            }
+
+                        TextField("Find in page", text: $findInput)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 180)
+                            .onSubmit {
+                                store.findInSelectedTab(findInput)
+                            }
+
                         Toggle(isOn: Binding(
                             get: { store.defaultPrivateModeEnabled },
                             set: { store.defaultPrivateModeEnabled = $0 }

@@ -33,4 +33,15 @@ final class BrowserStoreTests: XCTestCase {
         XCTAssertEqual(outcome, .closed)
         XCTAssertTrue(store.tabs.isEmpty)
     }
+
+    func testResolveNavigationURLForDomain() {
+        let url = BrowserStore.resolveNavigationURL(from: "openai.com")
+        XCTAssertEqual(url?.absoluteString, "https://openai.com")
+    }
+
+    func testResolveNavigationURLForSearchQuery() {
+        let url = BrowserStore.resolveNavigationURL(from: "best mac browser")
+        XCTAssertEqual(url?.host(), "duckduckgo.com")
+        XCTAssertTrue(url?.absoluteString.contains("q=best%20mac%20browser") == true)
+    }
 }

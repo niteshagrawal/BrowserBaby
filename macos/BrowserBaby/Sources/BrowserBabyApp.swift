@@ -42,6 +42,27 @@ struct BrowserBabyApp: App {
                 .disabled(store.selectedTabID == nil)
             }
 
+
+            CommandMenu("Navigate") {
+                Button("Back") {
+                    store.goBackSelectedTab()
+                }
+                .keyboardShortcut("[", modifiers: .command)
+                .disabled(!store.canGoBack)
+
+                Button("Forward") {
+                    store.goForwardSelectedTab()
+                }
+                .keyboardShortcut("]", modifiers: .command)
+                .disabled(!store.canGoForward)
+
+                Button("Reload") {
+                    store.reloadSelectedTab()
+                }
+                .keyboardShortcut("r", modifiers: .command)
+                .disabled(store.selectedTabID == nil)
+            }
+
             CommandMenu("Privacy") {
                 Button(store.defaultPrivateModeEnabled ? "Disable Default Private Mode" : "Enable Default Private Mode") {
                     store.toggleDefaultPrivateMode()
