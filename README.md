@@ -10,6 +10,12 @@ BrowserBaby is a macOS-first browser shell prototype aimed at Arc-like tab organ
 - Tab lifecycle tuning to avoid unnecessary loads and to reset pinned/folder-pinned tabs to base URL on close.
 - Navigation delegate synchronization so URL/title updates are captured from real browsing state.
 
+## Is it production-ready as a daily driver?
+
+Not yet. This repository is currently a prototype and pre-production foundation.
+
+For a concrete gap analysis and milestone plan, see `docs/daily-driver-readiness.md`.
+
 ## Included in this repo
 
 - Native SwiftUI + WebKit macOS app scaffold.
