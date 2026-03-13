@@ -58,6 +58,16 @@ struct ContentView: View {
                let selectedTab = store.tabs.first(where: { $0.id == selectedID }),
                let webView = store.activeWebView() {
                 WebViewContainer(webView: webView)
+                    .overlay(alignment: .top) {
+                        if let warning = store.lastNavigationWarning {
+                            Text(warning)
+                                .font(.caption)
+                                .padding(8)
+                                .background(.red.opacity(0.9), in: Capsule())
+                                .foregroundStyle(.white)
+                                .padding(.top, 8)
+                        }
+                    }
                     .onAppear {
                         addressInput = selectedTab.currentURL.absoluteString
                     }

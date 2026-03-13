@@ -16,6 +16,7 @@ The following foundational items have now been started in code:
 - Private-tab baseline via non-persistent `WKWebsiteDataStore`, plus manual clear-data control for regular browsing data.
 - Address bar navigation controls (back/forward/reload) and in-page find baseline.
 - Download manager baseline with destination routing and recent download actions.
+- URL-scheme hardening baseline to block unsafe direct navigation schemes.
 
 These improve baseline usability but do not yet close the production-readiness gaps listed below.
 

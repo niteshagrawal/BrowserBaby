@@ -45,6 +45,12 @@ final class BrowserStoreTests: XCTestCase {
         XCTAssertTrue(url?.absoluteString.contains("q=best%20mac%20browser") == true)
     }
 
+
+    func testResolveNavigationURLBlocksUnsafeScheme() {
+        XCTAssertNil(BrowserStore.resolveNavigationURL(from: "javascript:alert(1)"))
+        XCTAssertNil(BrowserStore.resolveNavigationURL(from: "file:///etc/passwd"))
+    }
+
     func testSafeDownloadURLUsesBrowserBabyDownloadsFolder() {
         let url = BrowserStore.safeDownloadURL(for: "report.pdf")
         XCTAssertEqual(url.lastPathComponent, "report.pdf")

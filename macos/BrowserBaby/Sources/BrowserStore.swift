@@ -28,6 +28,7 @@ final class BrowserStore: NSObject, ObservableObject {
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
     @Published var downloads: [DownloadItem] = []
+    @Published var lastNavigationWarning: String?
 
     private let webViewPool = WebViewPool(maxLiveViews: 6)
     private var tabIDByWebView: [ObjectIdentifier: UUID] = [:]
@@ -157,7 +158,11 @@ final class BrowserStore: NSObject, ObservableObject {
     }
 
     func navigate(tabID: UUID, input: String) {
-        guard let url = Self.resolveNavigationURL(from: input) else { return }
+        guard let url = Self.resolveNavigationURL(from: input) else {
+            lastNavigationWarning = "Blocked unsafe or invalid URL."
+            return
+        }
+        lastNavigationWarning = nil
         guard let tab = tabs.first(where: { $0.id == tabID }) else { return }
 
         updateTab(tabID) {
@@ -220,6 +225,8 @@ final class BrowserStore: NSObject, ObservableObject {
         guard !trimmed.isEmpty else { return nil }
 
         if let directURL = URL(string: trimmed), let scheme = directURL.scheme, !scheme.isEmpty {
+            let normalized = scheme.lowercased()
+            guard normalized == "http" || normalized == "https" else { return nil }
             return directURL
         }
 

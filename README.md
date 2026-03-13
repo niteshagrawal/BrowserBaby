@@ -26,6 +26,7 @@ For a concrete gap analysis and milestone plan, see `docs/daily-driver-readiness
 - Introduced unit-test targets for tab close semantics and session/model backward compatibility.
 - Browser controls baseline: address bar navigation, back/forward/reload actions, and in-page find.
 - Download manager baseline: WebKit download capture, destination handling, recent download list, and open/clear actions.
+- URL safety guardrail: direct navigation now blocks unsafe schemes (e.g., `javascript:` and `file:`).
 
 ## Included in this repo
 
