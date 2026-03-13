@@ -89,3 +89,38 @@ struct TabFolder: Identifiable, Hashable, Codable {
         self.pinnedTabIDs = pinnedTabIDs
     }
 }
+
+
+enum DownloadState: String, Codable {
+    case inProgress
+    case finished
+    case failed
+}
+
+struct DownloadItem: Identifiable, Hashable {
+    let id: UUID
+    var filename: String
+    var sourceURL: URL?
+    var destinationURL: URL?
+    var state: DownloadState
+    var createdAt: Date
+    var errorDescription: String?
+
+    init(
+        id: UUID = UUID(),
+        filename: String,
+        sourceURL: URL? = nil,
+        destinationURL: URL? = nil,
+        state: DownloadState = .inProgress,
+        createdAt: Date = .now,
+        errorDescription: String? = nil
+    ) {
+        self.id = id
+        self.filename = filename
+        self.sourceURL = sourceURL
+        self.destinationURL = destinationURL
+        self.state = state
+        self.createdAt = createdAt
+        self.errorDescription = errorDescription
+    }
+}

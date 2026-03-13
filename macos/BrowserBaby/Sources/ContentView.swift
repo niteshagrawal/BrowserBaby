@@ -34,6 +34,17 @@ struct ContentView: View {
                     }
                 }
 
+                Section("Downloads") {
+                    if store.downloads.isEmpty {
+                        Text("No downloads yet")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(store.downloads.prefix(5)) { item in
+                            downloadRow(item)
+                        }
+                    }
+                }
+
                 Section("All Tabs") {
                     ForEach(store.tabs.filter { $0.folderID == nil && !$0.isFavorite && !$0.isPinned }) { tabRow($0) }
                 }
@@ -109,6 +120,15 @@ struct ContentView: View {
                             store.clearRegularBrowsingData()
                         }
 
+                        Button("Downloads Folder") {
+                            store.openDownloadsFolder()
+                        }
+
+                        Button("Clear Finished") {
+                            store.clearFinishedDownloads()
+                        }
+                        .disabled(!store.downloads.contains(where: { $0.state == .finished }))
+
                         Picker("Engine", selection: Binding(
                             get: { selectedTab.engine },
                             set: { store.setEngine($0, for: selectedID) }
@@ -121,6 +141,28 @@ struct ContentView: View {
                     }
             } else {
                 ContentUnavailableView("No Tab Selected", systemImage: "globe")
+            }
+        }
+    }
+
+
+
+    @ViewBuilder
+    private func downloadRow(_ item: DownloadItem) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: item.state == .finished ? "arrow.down.doc.fill" : (item.state == .failed ? "exclamationmark.triangle.fill" : "arrow.down.circle"))
+                .foregroundStyle(item.state == .failed ? .red : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.filename)
+                    .lineLimit(1)
+                Text(item.state.rawValue.capitalized)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if item.state == .finished {
+                Button("Open") { store.openDownload(item.id) }
+                    .buttonStyle(.borderless)
             }
         }
     }

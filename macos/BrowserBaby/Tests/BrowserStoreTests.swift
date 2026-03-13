@@ -44,4 +44,16 @@ final class BrowserStoreTests: XCTestCase {
         XCTAssertEqual(url?.host(), "duckduckgo.com")
         XCTAssertTrue(url?.absoluteString.contains("q=best%20mac%20browser") == true)
     }
+
+    func testSafeDownloadURLUsesBrowserBabyDownloadsFolder() {
+        let url = BrowserStore.safeDownloadURL(for: "report.pdf")
+        XCTAssertEqual(url.lastPathComponent, "report.pdf")
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "BrowserBaby")
+    }
+
+    func testSafeDownloadURLSanitizesSlashes() {
+        let url = BrowserStore.safeDownloadURL(for: "foo/bar.txt")
+        XCTAssertEqual(url.lastPathComponent, "foo-bar.txt")
+    }
+
 }

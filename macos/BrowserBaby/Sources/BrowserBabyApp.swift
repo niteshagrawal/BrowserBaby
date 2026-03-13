@@ -63,6 +63,18 @@ struct BrowserBabyApp: App {
                 .disabled(store.selectedTabID == nil)
             }
 
+
+            CommandMenu("Downloads") {
+                Button("Open Downloads Folder") {
+                    store.openDownloadsFolder()
+                }
+
+                Button("Clear Finished Downloads") {
+                    store.clearFinishedDownloads()
+                }
+                .disabled(!store.downloads.contains(where: { $0.state == .finished }))
+            }
+
             CommandMenu("Privacy") {
                 Button(store.defaultPrivateModeEnabled ? "Disable Default Private Mode" : "Enable Default Private Mode") {
                     store.toggleDefaultPrivateMode()

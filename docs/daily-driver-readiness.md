@@ -15,6 +15,7 @@ The following foundational items have now been started in code:
 - Keyboard shortcuts for frequent tab actions.
 - Private-tab baseline via non-persistent `WKWebsiteDataStore`, plus manual clear-data control for regular browsing data.
 - Address bar navigation controls (back/forward/reload) and in-page find baseline.
+- Download manager baseline with destination routing and recent download actions.
 
 These improve baseline usability but do not yet close the production-readiness gaps listed below.
 

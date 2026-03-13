@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import WebKit
 
@@ -26,11 +27,13 @@ final class BrowserStore: NSObject, ObservableObject {
     }
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
+    @Published var downloads: [DownloadItem] = []
 
     private let webViewPool = WebViewPool(maxLiveViews: 6)
     private var tabIDByWebView: [ObjectIdentifier: UUID] = [:]
     private let sessionPersistence = SessionPersistence()
     private var persistenceTask: Task<Void, Never>?
+    private var downloadIDByObjectID: [ObjectIdentifier: UUID] = [:]
 
     init(seedData: Bool = true) {
         super.init()
@@ -197,6 +200,21 @@ final class BrowserStore: NSObject, ObservableObject {
         webView.evaluateJavaScript(js)
     }
 
+    func openDownload(_ itemID: UUID) {
+        guard let item = downloads.first(where: { $0.id == itemID }),
+              let destinationURL = item.destinationURL,
+              item.state == .finished else { return }
+        NSWorkspace.shared.open(destinationURL)
+    }
+
+    func openDownloadsFolder() {
+        NSWorkspace.shared.open(Self.downloadsDirectory())
+    }
+
+    func clearFinishedDownloads() {
+        downloads.removeAll { $0.state == .finished }
+    }
+
     static func resolveNavigationURL(from rawInput: String) -> URL? {
         let trimmed = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -216,6 +234,23 @@ final class BrowserStore: NSObject, ObservableObject {
 
         let query = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
         return URL(string: "https://duckduckgo.com/?q=\(query)")
+    }
+
+    static func downloadsDirectory() -> URL {
+        let fileManager = FileManager.default
+        let downloads = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        let folder = downloads.appendingPathComponent("BrowserBaby", isDirectory: true)
+        try? fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    static func safeDownloadURL(for suggestedFilename: String) -> URL {
+        let sanitized = suggestedFilename
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "/", with: "-")
+        let filename = sanitized.isEmpty ? "download.bin" : sanitized
+        return downloadsDirectory().appendingPathComponent(filename)
     }
 
     private func schedulePersistSession() {
@@ -284,6 +319,20 @@ final class BrowserStore: NSObject, ObservableObject {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         update(&tabs[index])
     }
+
+    private func startTracking(download: WKDownload, response: URLResponse?) {
+        let filename = response?.suggestedFilename ?? "download.bin"
+        let sourceURL = response?.url
+        let item = DownloadItem(filename: filename, sourceURL: sourceURL)
+        downloads.insert(item, at: 0)
+        downloadIDByObjectID[ObjectIdentifier(download)] = item.id
+        download.delegate = self
+    }
+
+    private func updateDownload(_ id: UUID, update: (inout DownloadItem) -> Void) {
+        guard let index = downloads.firstIndex(where: { $0.id == id }) else { return }
+        update(&downloads[index])
+    }
 }
 
 extension BrowserStore: WKNavigationDelegate {
@@ -310,6 +359,49 @@ extension BrowserStore: WKNavigationDelegate {
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         webView.reload()
     }
+
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        startTracking(download: download, response: navigationAction.request.url.flatMap { URLResponse(url: $0, mimeType: nil, expectedContentLength: 0, textEncodingName: nil) })
+    }
+
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        startTracking(download: download, response: navigationResponse.response)
+    }
 }
 
 extension BrowserStore: WKUIDelegate {}
+
+extension BrowserStore: WKDownloadDelegate {
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        let destinationURL = Self.safeDownloadURL(for: suggestedFilename)
+        let downloadID = downloadIDByObjectID[ObjectIdentifier(download)]
+        if let downloadID {
+            updateDownload(downloadID) {
+                $0.filename = suggestedFilename
+                $0.sourceURL = response.url
+                $0.destinationURL = destinationURL
+            }
+        }
+        completionHandler(destinationURL)
+    }
+
+    func downloadDidFinish(_ download: WKDownload) {
+        let objectID = ObjectIdentifier(download)
+        guard let downloadID = downloadIDByObjectID[objectID] else { return }
+        updateDownload(downloadID) {
+            $0.state = .finished
+            $0.errorDescription = nil
+        }
+        downloadIDByObjectID.removeValue(forKey: objectID)
+    }
+
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        let objectID = ObjectIdentifier(download)
+        guard let downloadID = downloadIDByObjectID[objectID] else { return }
+        updateDownload(downloadID) {
+            $0.state = .failed
+            $0.errorDescription = error.localizedDescription
+        }
+        downloadIDByObjectID.removeValue(forKey: objectID)
+    }
+}
