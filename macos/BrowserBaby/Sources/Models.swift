@@ -5,6 +5,7 @@ enum BrowserEngine: String, CaseIterable, Codable, Identifiable {
     case chromium
 
     var id: String { rawValue }
+
     var displayName: String {
         switch self {
         case .webkit: return "WebKit"
@@ -22,6 +23,7 @@ struct BrowserTab: Identifiable, Hashable, Codable {
     var isFavorite: Bool
     var engine: BrowserEngine
     var folderID: UUID?
+    var lastAccessedAt: Date
 
     init(
         id: UUID = UUID(),
@@ -31,7 +33,8 @@ struct BrowserTab: Identifiable, Hashable, Codable {
         isPinned: Bool = false,
         isFavorite: Bool = false,
         engine: BrowserEngine = .webkit,
-        folderID: UUID? = nil
+        folderID: UUID? = nil,
+        lastAccessedAt: Date = .now
     ) {
         self.id = id
         self.title = title
@@ -41,6 +44,7 @@ struct BrowserTab: Identifiable, Hashable, Codable {
         self.isFavorite = isFavorite
         self.engine = engine
         self.folderID = folderID
+        self.lastAccessedAt = lastAccessedAt
     }
 }
 

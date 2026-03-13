@@ -2,6 +2,14 @@
 
 BrowserBaby is a macOS-first browser shell prototype aimed at Arc-like tab organization with a WebKit core and future hybrid engine toggle support.
 
+## Production-readiness improvements in this version
+
+- Shared `WKProcessPool` to reduce per-tab process churn and improve resource reuse.
+- Bounded `WKWebView` pool (LRU-style trimming) to keep memory stable under heavy tab usage.
+- Lazy tab activation so only active/recent tabs keep live web views.
+- Tab lifecycle tuning to avoid unnecessary loads and to reset pinned/folder-pinned tabs to base URL on close.
+- Navigation delegate synchronization so URL/title updates are captured from real browsing state.
+
 ## Included in this repo
 
 - Native SwiftUI + WebKit macOS app scaffold.
@@ -39,7 +47,13 @@ Output:
 - App bundle: `macos/BrowserBaby/build/export/BrowserBaby.app`
 - Zip for sharing: `macos/BrowserBaby/build/BrowserBaby-macOS.zip`
 
+## Distribution checklist (for public sharing)
+
+1. Set your Apple Developer Team in Xcode build settings.
+2. Sign with Developer ID Application certificate.
+3. Notarize the app using `notarytool`.
+4. Staple notarization ticket before distribution.
+
 ## Notes
 
 - Chromium engine integration is currently a placeholder; selecting Chromium reverts to WebKit until a Chromium backend is added.
-- For public distribution outside your machine, you will need Apple code signing + notarization.

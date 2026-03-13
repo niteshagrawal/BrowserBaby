@@ -3,9 +3,19 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var store: BrowserStore
 
+    private var selectionBinding: Binding<UUID?> {
+        Binding(
+            get: { store.selectedTabID },
+            set: { newValue in
+                guard let id = newValue else { return }
+                store.selectTab(id)
+            }
+        )
+    }
+
     var body: some View {
         NavigationSplitView {
-            List(selection: $store.selectedTabID) {
+            List(selection: selectionBinding) {
                 Section("Favorites") {
                     ForEach(store.tabs.filter(\.isFavorite)) { tabRow($0) }
                 }
@@ -26,30 +36,26 @@ struct ContentView: View {
                     ForEach(store.tabs.filter { $0.folderID == nil && !$0.isFavorite && !$0.isPinned }) { tabRow($0) }
                 }
             }
-            .toolbar {
-                Button("New Tab") { store.addTab() }
-            }
-            .frame(minWidth: 280)
+            .toolbar { Button("New Tab") { store.addTab() } }
+            .frame(minWidth: 300)
         } detail: {
-            if let selectedID = store.selectedTabID {
-                if let selectedTab = store.tabs.first(where: { $0.id == selectedID }) {
-                    WebViewContainer(webView: store.webView(for: selectedID))
-                        .toolbar {
-                            Picker("Engine", selection: Binding(
-                                get: { selectedTab.engine },
-                                set: { store.setEngine($0, for: selectedID) }
-                            )) {
-                                ForEach(BrowserEngine.allCases) { engine in
-                                    Text(engine.displayName).tag(engine)
-                                }
+            if let selectedID = store.selectedTabID,
+               let selectedTab = store.tabs.first(where: { $0.id == selectedID }),
+               let webView = store.activeWebView() {
+                WebViewContainer(webView: webView)
+                    .toolbar {
+                        Picker("Engine", selection: Binding(
+                            get: { selectedTab.engine },
+                            set: { store.setEngine($0, for: selectedID) }
+                        )) {
+                            ForEach(BrowserEngine.allCases) { engine in
+                                Text(engine.displayName).tag(engine)
                             }
-                            .pickerStyle(.menu)
                         }
-                } else {
-                    Text("Select a tab")
-                }
+                        .pickerStyle(.menu)
+                    }
             } else {
-                Text("Create your first tab")
+                ContentUnavailableView("No Tab Selected", systemImage: "globe")
             }
         }
     }
@@ -60,6 +66,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tab.title)
                     .font(.body)
+                    .lineLimit(1)
                 Text(tab.currentURL.host() ?? tab.currentURL.absoluteString)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -72,9 +79,8 @@ struct ContentView: View {
         .contextMenu {
             Button(tab.isFavorite ? "Unfavorite" : "Favorite") { store.toggleFavorite(tab.id) }
             Button(tab.isPinned ? "Unpin" : "Pin") { store.togglePinned(tab.id) }
-            if let folderID {
-                Button("Toggle folder pin") { store.toggleFolderPin(tabID: tab.id, folderID: folderID) }
-            }
+            if let folderID { Button("Toggle Folder Pin") { store.toggleFolderPin(tabID: tab.id, folderID: folderID) } }
+            Divider()
             Button("Close Tab") { store.closeTab(tab.id) }
         }
         .tag(tab.id)

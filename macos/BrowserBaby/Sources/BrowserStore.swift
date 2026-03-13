@@ -2,15 +2,19 @@ import Foundation
 import WebKit
 
 @MainActor
-final class BrowserStore: ObservableObject {
+final class BrowserStore: NSObject, ObservableObject {
     @Published var tabs: [BrowserTab] = []
     @Published var folders: [TabFolder] = []
     @Published var selectedTabID: UUID?
     @Published var defaultEngine: BrowserEngine = .webkit
 
-    private var webViews: [UUID: WKWebView] = [:]
+    private let webViewPool = WebViewPool(maxLiveViews: 6)
+    private var tabIDByWebView: [ObjectIdentifier: UUID] = [:]
 
-    init() {
+    init(seedData: Bool = true) {
+        super.init()
+
+        guard seedData else { return }
         let folder = TabFolder(name: "Work")
         folders = [folder]
         let sampleTab = BrowserTab(title: "BrowserBaby", baseURL: URL(string: "https://example.com")!, folderID: folder.id)
@@ -21,16 +25,19 @@ final class BrowserStore: ObservableObject {
     func addTab(in folderID: UUID? = nil, url: URL = URL(string: "https://example.com")!) {
         let tab = BrowserTab(title: "New Tab", baseURL: url, engine: defaultEngine, folderID: folderID)
         tabs.append(tab)
-        selectedTabID = tab.id
+        selectTab(tab.id)
     }
 
-    func toggleFavorite(_ tabID: UUID) {
-        updateTab(tabID) { $0.isFavorite.toggle() }
+    func selectTab(_ tabID: UUID) {
+        updateTab(tabID) { $0.lastAccessedAt = .now }
+        selectedTabID = tabID
+        guard let tab = tabs.first(where: { $0.id == tabID }) else { return }
+        _ = webView(for: tab.id, initialURL: tab.currentURL)
+        trimInactiveTabs()
     }
 
-    func togglePinned(_ tabID: UUID) {
-        updateTab(tabID) { $0.isPinned.toggle() }
-    }
+    func toggleFavorite(_ tabID: UUID) { updateTab(tabID) { $0.isFavorite.toggle() } }
+    func togglePinned(_ tabID: UUID) { updateTab(tabID) { $0.isPinned.toggle() } }
 
     func toggleFolderPin(tabID: UUID, folderID: UUID) {
         guard let index = folders.firstIndex(where: { $0.id == folderID }) else { return }
@@ -44,50 +51,62 @@ final class BrowserStore: ObservableObject {
     func closeTab(_ tabID: UUID) {
         guard let tab = tabs.first(where: { $0.id == tabID }) else { return }
 
-        if let folderID = tab.folderID,
-           let folder = folders.first(where: { $0.id == folderID }),
-           folder.pinnedTabIDs.contains(tabID) {
-            resetTab(tabID)
-            return
-        }
-
-        if tab.isPinned {
+        if isFolderPinned(tabID: tabID, folderID: tab.folderID) || tab.isPinned {
             resetTab(tabID)
             return
         }
 
         tabs.removeAll { $0.id == tabID }
-        webViews[tabID] = nil
-        selectedTabID = tabs.first?.id
+        webViewPool.release(tabID: tabID)
+
+        if selectedTabID == tabID {
+            selectedTabID = tabs.sorted(by: { $0.lastAccessedAt > $1.lastAccessedAt }).first?.id
+        }
+        trimInactiveTabs()
     }
 
     func resetTab(_ tabID: UUID) {
-        updateTab(tabID) { tab in
-            tab.currentURL = tab.baseURL
+        guard let tab = tabs.first(where: { $0.id == tabID }) else { return }
+        updateTab(tabID) {
+            $0.currentURL = tab.baseURL
+            $0.lastAccessedAt = .now
         }
-        webViews[tabID]?.load(URLRequest(url: tabs.first(where: { $0.id == tabID })?.baseURL ?? URL(string: "https://example.com")!))
+
+        if let webView = webViewPool.existingWebView(for: tabID) {
+            webView.stopLoading()
+            webView.load(URLRequest(url: tab.baseURL, cachePolicy: .reloadRevalidatingCacheData, timeoutInterval: 30))
+        }
     }
 
     func setEngine(_ engine: BrowserEngine, for tabID: UUID) {
-        updateTab(tabID) { $0.engine = engine }
-        if engine == .chromium {
-            // Placeholder fallback until Chromium backend is integrated.
-            updateTab(tabID) { $0.engine = .webkit }
-        }
+        updateTab(tabID) { $0.engine = engine == .chromium ? .webkit : engine }
     }
 
-    func webView(for tabID: UUID) -> WKWebView {
-        if let existing = webViews[tabID] {
-            return existing
+    func activeWebView() -> WKWebView? {
+        guard let selectedTabID, let tab = tabs.first(where: { $0.id == selectedTabID }) else {
+            return nil
         }
+        return webView(for: selectedTabID, initialURL: tab.currentURL)
+    }
 
-        let config = WKWebViewConfiguration()
-        let view = WKWebView(frame: .zero, configuration: config)
-        if let tab = tabs.first(where: { $0.id == tabID }) {
-            view.load(URLRequest(url: tab.currentURL))
+    private func webView(for tabID: UUID, initialURL: URL) -> WKWebView {
+        let webView = webViewPool.webView(for: tabID, initialURL: initialURL, navigationDelegate: self, uiDelegate: self)
+        tabIDByWebView[ObjectIdentifier(webView)] = tabID
+        return webView
+    }
+
+
+    private func trimInactiveTabs() {
+        var protectedIDs: Set<UUID> = Set(tabs.filter(\.isPinned).map(\.id))
+        if let selectedTabID {
+            protectedIDs.insert(selectedTabID)
         }
-        webViews[tabID] = view
-        return view
+        webViewPool.trimIfNeeded(protectedTabIDs: protectedIDs)
+    }
+
+    private func isFolderPinned(tabID: UUID, folderID: UUID?) -> Bool {
+        guard let folderID, let folder = folders.first(where: { $0.id == folderID }) else { return false }
+        return folder.pinnedTabIDs.contains(tabID)
     }
 
     private func updateTab(_ tabID: UUID, update: (inout BrowserTab) -> Void) {
@@ -95,3 +114,23 @@ final class BrowserStore: ObservableObject {
         update(&tabs[index])
     }
 }
+
+extension BrowserStore: WKNavigationDelegate {
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        let webViewID = ObjectIdentifier(webView)
+        guard let tabID = tabIDByWebView[webViewID] else { return }
+
+        updateTab(tabID) { tab in
+            if let url = webView.url {
+                tab.currentURL = url
+            }
+            let pageTitle = webView.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let pageTitle, !pageTitle.isEmpty {
+                tab.title = pageTitle
+            }
+            tab.lastAccessedAt = .now
+        }
+    }
+}
+
+extension BrowserStore: WKUIDelegate {}
