@@ -36,7 +36,9 @@ struct ContentView: View {
                     ForEach(store.tabs.filter { $0.folderID == nil && !$0.isFavorite && !$0.isPinned }) { tabRow($0) }
                 }
             }
-            .toolbar { Button("New Tab") { store.addTab() } }
+            .toolbar {
+                Button("New Tab") { store.addTab() }
+            }
             .frame(minWidth: 300)
         } detail: {
             if let selectedID = store.selectedTabID,
@@ -44,6 +46,23 @@ struct ContentView: View {
                let webView = store.activeWebView() {
                 WebViewContainer(webView: webView)
                     .toolbar {
+                        Toggle(isOn: Binding(
+                            get: { store.defaultPrivateModeEnabled },
+                            set: { store.defaultPrivateModeEnabled = $0 }
+                        )) {
+                            Label("Default Private", systemImage: "eye.slash")
+                        }
+                        .toggleStyle(.checkbox)
+
+                        if selectedTab.isPrivate {
+                            Label("Private Tab", systemImage: "eye.slash.fill")
+                                .foregroundStyle(.purple)
+                        }
+
+                        Button("Clear Data") {
+                            store.clearRegularBrowsingData()
+                        }
+
                         Picker("Engine", selection: Binding(
                             get: { selectedTab.engine },
                             set: { store.setEngine($0, for: selectedID) }
@@ -73,6 +92,7 @@ struct ContentView: View {
                     .lineLimit(1)
             }
             Spacer()
+            if tab.isPrivate { Image(systemName: "eye.slash") }
             if tab.isFavorite { Image(systemName: "star.fill").foregroundStyle(.yellow) }
             if tab.isPinned { Image(systemName: "pin.fill") }
         }

@@ -15,6 +15,9 @@ final class BrowserStore: NSObject, ObservableObject {
     @Published var defaultEngine: BrowserEngine = .webkit {
         didSet { persistSession() }
     }
+    @Published var defaultPrivateModeEnabled: Bool = false {
+        didSet { persistSession() }
+    }
 
     private let webViewPool = WebViewPool(maxLiveViews: 6)
     private var tabIDByWebView: [ObjectIdentifier: UUID] = [:]
@@ -35,8 +38,8 @@ final class BrowserStore: NSObject, ObservableObject {
         selectedTabID = sampleTab.id
     }
 
-    func addTab(in folderID: UUID? = nil, url: URL = URL(string: "https://example.com")!) {
-        let tab = BrowserTab(title: "New Tab", baseURL: url, engine: defaultEngine, folderID: folderID)
+    func addTab(in folderID: UUID? = nil, url: URL = URL(string: "https://example.com")!, isPrivate: Bool? = nil) {
+        let tab = BrowserTab(title: "New Tab", baseURL: url, isPrivate: isPrivate ?? defaultPrivateModeEnabled, engine: defaultEngine, folderID: folderID)
         tabs.append(tab)
         selectTab(tab.id)
     }
@@ -110,6 +113,16 @@ final class BrowserStore: NSObject, ObservableObject {
         updateTab(tabID) { $0.engine = engine == .chromium ? .webkit : engine }
     }
 
+
+    func toggleDefaultPrivateMode() {
+        defaultPrivateModeEnabled.toggle()
+    }
+
+    func clearRegularBrowsingData() {
+        let allDataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
+        WKWebsiteDataStore.default().removeData(ofTypes: allDataTypes, modifiedSince: .distantPast) {}
+    }
+
     func activeWebView() -> WKWebView? {
         guard let selectedTabID, let tab = tabs.first(where: { $0.id == selectedTabID }) else {
             return nil
@@ -122,7 +135,8 @@ final class BrowserStore: NSObject, ObservableObject {
             tabs: tabs,
             folders: folders,
             selectedTabID: selectedTabID,
-            defaultEngine: defaultEngine
+            defaultEngine: defaultEngine,
+            defaultPrivateModeEnabled: defaultPrivateModeEnabled
         )
         sessionPersistence.save(snapshot: snapshot)
     }
@@ -135,6 +149,7 @@ final class BrowserStore: NSObject, ObservableObject {
         tabs = snapshot.tabs
         folders = snapshot.folders
         defaultEngine = snapshot.defaultEngine
+        defaultPrivateModeEnabled = snapshot.defaultPrivateModeEnabled
 
         if let selectedTabID = snapshot.selectedTabID,
            tabs.contains(where: { $0.id == selectedTabID }) {
@@ -147,7 +162,8 @@ final class BrowserStore: NSObject, ObservableObject {
     }
 
     private func webView(for tabID: UUID, initialURL: URL) -> WKWebView {
-        let webView = webViewPool.webView(for: tabID, initialURL: initialURL, navigationDelegate: self, uiDelegate: self)
+        let isPrivate = tabs.first(where: { $0.id == tabID })?.isPrivate ?? false
+        let webView = webViewPool.webView(for: tabID, initialURL: initialURL, isPrivate: isPrivate, navigationDelegate: self, uiDelegate: self)
         tabIDByWebView[ObjectIdentifier(webView)] = tabID
         return webView
     }

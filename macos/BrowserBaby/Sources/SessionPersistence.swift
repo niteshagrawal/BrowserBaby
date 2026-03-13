@@ -5,6 +5,38 @@ struct BrowserSessionSnapshot: Codable {
     var folders: [TabFolder]
     var selectedTabID: UUID?
     var defaultEngine: BrowserEngine
+    var defaultPrivateModeEnabled: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case tabs
+        case folders
+        case selectedTabID
+        case defaultEngine
+        case defaultPrivateModeEnabled
+    }
+
+    init(
+        tabs: [BrowserTab],
+        folders: [TabFolder],
+        selectedTabID: UUID?,
+        defaultEngine: BrowserEngine,
+        defaultPrivateModeEnabled: Bool
+    ) {
+        self.tabs = tabs
+        self.folders = folders
+        self.selectedTabID = selectedTabID
+        self.defaultEngine = defaultEngine
+        self.defaultPrivateModeEnabled = defaultPrivateModeEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tabs = try container.decode([BrowserTab].self, forKey: .tabs)
+        folders = try container.decode([TabFolder].self, forKey: .folders)
+        selectedTabID = try container.decodeIfPresent(UUID.self, forKey: .selectedTabID)
+        defaultEngine = try container.decode(BrowserEngine.self, forKey: .defaultEngine)
+        defaultPrivateModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .defaultPrivateModeEnabled) ?? false
+    }
 }
 
 @MainActor

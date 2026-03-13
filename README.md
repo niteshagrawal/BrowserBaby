@@ -20,7 +20,8 @@ For a concrete gap analysis and milestone plan, see `docs/daily-driver-readiness
 
 - Session persistence + restore: tabs, folders, selected tab, and default engine are now saved and reloaded on launch.
 - Basic crash resilience: if a web content process is terminated, the tab automatically reloads.
-- Productivity shortcuts: Command+T (new tab), Command+W (close selected tab), Shift+Command+D (toggle favorite), Shift+Command+P (toggle pin).
+- Productivity shortcuts: Command+T (new tab), Shift+Command+T (new private tab), Command+W (close selected tab), Shift+Command+D (toggle favorite), Shift+Command+P (toggle pin).
+- Privacy baseline: private tabs now use non-persistent website data storage, with default private-mode toggle and a command to clear regular browsing data.
 
 ## Included in this repo
 

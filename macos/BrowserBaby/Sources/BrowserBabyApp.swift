@@ -16,6 +16,11 @@ struct BrowserBabyApp: App {
                 }
                 .keyboardShortcut("t", modifiers: .command)
 
+                Button("New Private Tab") {
+                    store.addTab(isPrivate: true)
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+
                 Button("Close Tab") {
                     store.closeSelectedTab()
                 }
@@ -35,6 +40,16 @@ struct BrowserBabyApp: App {
                 }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
                 .disabled(store.selectedTabID == nil)
+            }
+
+            CommandMenu("Privacy") {
+                Button(store.defaultPrivateModeEnabled ? "Disable Default Private Mode" : "Enable Default Private Mode") {
+                    store.toggleDefaultPrivateMode()
+                }
+
+                Button("Clear Regular Browsing Data") {
+                    store.clearRegularBrowsingData()
+                }
             }
         }
         .windowResizability(.contentSize)

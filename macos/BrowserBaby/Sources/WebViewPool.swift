@@ -3,7 +3,7 @@ import WebKit
 
 @MainActor
 final class WebViewPool {
-    private let processPool = WKProcessPool()
+    private let regularProcessPool = WKProcessPool()
     private let maxLiveViews: Int
 
     private var webViewsByTabID: [UUID: WKWebView] = [:]
@@ -13,7 +13,13 @@ final class WebViewPool {
         self.maxLiveViews = maxLiveViews
     }
 
-    func webView(for tabID: UUID, initialURL: URL, navigationDelegate: WKNavigationDelegate, uiDelegate: WKUIDelegate?) -> WKWebView {
+    func webView(
+        for tabID: UUID,
+        initialURL: URL,
+        isPrivate: Bool,
+        navigationDelegate: WKNavigationDelegate,
+        uiDelegate: WKUIDelegate?
+    ) -> WKWebView {
         if let existing = webViewsByTabID[tabID] {
             lastUseDateByTabID[tabID] = .now
             existing.navigationDelegate = navigationDelegate
@@ -22,8 +28,8 @@ final class WebViewPool {
         }
 
         let configuration = WKWebViewConfiguration()
-        configuration.processPool = processPool
-        configuration.websiteDataStore = .default()
+        configuration.processPool = regularProcessPool
+        configuration.websiteDataStore = isPrivate ? .nonPersistent() : .default()
         configuration.suppressesIncrementalRendering = false
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
 

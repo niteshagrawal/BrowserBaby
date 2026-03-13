@@ -21,9 +21,23 @@ struct BrowserTab: Identifiable, Hashable, Codable {
     var currentURL: URL
     var isPinned: Bool
     var isFavorite: Bool
+    var isPrivate: Bool
     var engine: BrowserEngine
     var folderID: UUID?
     var lastAccessedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case baseURL
+        case currentURL
+        case isPinned
+        case isFavorite
+        case isPrivate
+        case engine
+        case folderID
+        case lastAccessedAt
+    }
 
     init(
         id: UUID = UUID(),
@@ -32,6 +46,7 @@ struct BrowserTab: Identifiable, Hashable, Codable {
         currentURL: URL? = nil,
         isPinned: Bool = false,
         isFavorite: Bool = false,
+        isPrivate: Bool = false,
         engine: BrowserEngine = .webkit,
         folderID: UUID? = nil,
         lastAccessedAt: Date = .now
@@ -42,9 +57,24 @@ struct BrowserTab: Identifiable, Hashable, Codable {
         self.currentURL = currentURL ?? baseURL
         self.isPinned = isPinned
         self.isFavorite = isFavorite
+        self.isPrivate = isPrivate
         self.engine = engine
         self.folderID = folderID
         self.lastAccessedAt = lastAccessedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        baseURL = try container.decode(URL.self, forKey: .baseURL)
+        currentURL = try container.decode(URL.self, forKey: .currentURL)
+        isPinned = try container.decode(Bool.self, forKey: .isPinned)
+        isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
+        isPrivate = try container.decodeIfPresent(Bool.self, forKey: .isPrivate) ?? false
+        engine = try container.decode(BrowserEngine.self, forKey: .engine)
+        folderID = try container.decodeIfPresent(UUID.self, forKey: .folderID)
+        lastAccessedAt = try container.decode(Date.self, forKey: .lastAccessedAt)
     }
 }
 
