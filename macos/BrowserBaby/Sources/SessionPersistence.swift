@@ -6,6 +6,8 @@ struct BrowserSessionSnapshot: Codable {
     var selectedTabID: UUID?
     var defaultEngine: BrowserEngine
     var defaultPrivateModeEnabled: Bool
+    var permissionStates: [PermissionKind: PermissionState]
+    var recentlyClosedTabs: [BrowserTab]
 
     enum CodingKeys: String, CodingKey {
         case tabs
@@ -13,6 +15,8 @@ struct BrowserSessionSnapshot: Codable {
         case selectedTabID
         case defaultEngine
         case defaultPrivateModeEnabled
+        case permissionStates
+        case recentlyClosedTabs
     }
 
     init(
@@ -20,13 +24,17 @@ struct BrowserSessionSnapshot: Codable {
         folders: [TabFolder],
         selectedTabID: UUID?,
         defaultEngine: BrowserEngine,
-        defaultPrivateModeEnabled: Bool
+        defaultPrivateModeEnabled: Bool,
+        permissionStates: [PermissionKind: PermissionState],
+        recentlyClosedTabs: [BrowserTab]
     ) {
         self.tabs = tabs
         self.folders = folders
         self.selectedTabID = selectedTabID
         self.defaultEngine = defaultEngine
         self.defaultPrivateModeEnabled = defaultPrivateModeEnabled
+        self.permissionStates = permissionStates
+        self.recentlyClosedTabs = recentlyClosedTabs
     }
 
     init(from decoder: Decoder) throws {
@@ -36,6 +44,9 @@ struct BrowserSessionSnapshot: Codable {
         selectedTabID = try container.decodeIfPresent(UUID.self, forKey: .selectedTabID)
         defaultEngine = try container.decode(BrowserEngine.self, forKey: .defaultEngine)
         defaultPrivateModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .defaultPrivateModeEnabled) ?? false
+        permissionStates = try container.decodeIfPresent([PermissionKind: PermissionState].self, forKey: .permissionStates)
+            ?? Dictionary(uniqueKeysWithValues: PermissionKind.allCases.map { ($0, .ask) })
+        recentlyClosedTabs = try container.decodeIfPresent([BrowserTab].self, forKey: .recentlyClosedTabs) ?? []
     }
 }
 

@@ -18,6 +18,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: BrowserBaby
+        GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © BrowserBaby
         INFOPLIST_KEY_CFBundleDisplayName: BrowserBaby

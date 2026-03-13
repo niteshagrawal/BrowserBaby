@@ -34,6 +34,18 @@ final class BrowserStoreTests: XCTestCase {
         XCTAssertTrue(store.tabs.isEmpty)
     }
 
+    func testReopenLastClosedTab() {
+        let store = BrowserStore(seedData: false)
+        let id = UUID()
+        let tab = BrowserTab(id: id, title: "Close Me", baseURL: URL(string: "https://example.com")!)
+        store.tabs = [tab]
+
+        _ = store.closeTab(id)
+        store.reopenLastClosedTab()
+
+        XCTAssertEqual(store.tabs.count, 1)
+        XCTAssertEqual(store.tabs[0].id, id)
+    }
     func testResolveNavigationURLForDomain() {
         let url = BrowserStore.resolveNavigationURL(from: "openai.com")
         XCTAssertEqual(url?.absoluteString, "https://openai.com")
@@ -44,8 +56,6 @@ final class BrowserStoreTests: XCTestCase {
         XCTAssertEqual(url?.host(), "duckduckgo.com")
         XCTAssertTrue(url?.absoluteString.contains("q=best%20mac%20browser") == true)
     }
-
-
     func testResolveNavigationURLBlocksUnsafeScheme() {
         XCTAssertNil(BrowserStore.resolveNavigationURL(from: "javascript:alert(1)"))
         XCTAssertNil(BrowserStore.resolveNavigationURL(from: "file:///etc/passwd"))
@@ -61,5 +71,4 @@ final class BrowserStoreTests: XCTestCase {
         let url = BrowserStore.safeDownloadURL(for: "foo/bar.txt")
         XCTAssertEqual(url.lastPathComponent, "foo-bar.txt")
     }
-
 }

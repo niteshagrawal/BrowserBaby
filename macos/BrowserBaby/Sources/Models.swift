@@ -14,6 +14,37 @@ enum BrowserEngine: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+enum PermissionKind: String, CaseIterable, Codable, Identifiable {
+    case camera
+    case microphone
+    case location
+    case notifications
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .camera: return "Camera"
+        case .microphone: return "Microphone"
+        case .location: return "Location"
+        case .notifications: return "Notifications"
+        }
+    }
+}
+
+enum PermissionState: String, CaseIterable, Codable {
+    case ask
+    case allow
+    case deny
+
+    mutating func cycle() {
+        switch self {
+        case .ask: self = .allow
+        case .allow: self = .deny
+        case .deny: self = .ask
+        }
+    }
+}
 struct BrowserTab: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
@@ -89,7 +120,6 @@ struct TabFolder: Identifiable, Hashable, Codable {
         self.pinnedTabIDs = pinnedTabIDs
     }
 }
-
 
 enum DownloadState: String, Codable {
     case inProgress

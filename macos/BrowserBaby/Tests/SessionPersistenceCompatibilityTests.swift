@@ -13,12 +13,14 @@ final class SessionPersistenceCompatibilityTests: XCTestCase {
         XCTAssertFalse(tab.isPrivate)
     }
 
-    func testSessionSnapshotDecodeDefaultsPrivateModeToFalse() throws {
+    func testSessionSnapshotDecodeDefaultsPrivateModeAndPermissions() throws {
         let json = #"{"tabs":[],"folders":[],"selectedTabID":null,"defaultEngine":"webkit"}"#
         let data = Data(json.utf8)
 
         let snapshot = try JSONDecoder().decode(BrowserSessionSnapshot.self, from: data)
 
         XCTAssertFalse(snapshot.defaultPrivateModeEnabled)
+        XCTAssertEqual(snapshot.permissionStates.count, PermissionKind.allCases.count)
+        XCTAssertTrue(snapshot.recentlyClosedTabs.isEmpty)
     }
 }

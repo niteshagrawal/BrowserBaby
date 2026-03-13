@@ -27,6 +27,9 @@ For a concrete gap analysis and milestone plan, see `docs/daily-driver-readiness
 - Browser controls baseline: address bar navigation, back/forward/reload actions, and in-page find.
 - Download manager baseline: WebKit download capture, destination handling, recent download list, and open/clear actions.
 - URL safety guardrail: direct navigation now blocks unsafe schemes (e.g., `javascript:` and `file:`).
+- Permission center baseline: persisted Ask/Allow/Deny states for camera, microphone, location, and notifications.
+- Stabilization improvements: reopen closed tab support and repeated renderer-crash recovery fallback.
+- Compatibility harness baseline: one-click top-sites suite to open a QA folder of critical web apps.
 
 ## Included in this repo
 

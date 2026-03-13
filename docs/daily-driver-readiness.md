@@ -17,6 +17,9 @@ The following foundational items have now been started in code:
 - Address bar navigation controls (back/forward/reload) and in-page find baseline.
 - Download manager baseline with destination routing and recent download actions.
 - URL-scheme hardening baseline to block unsafe direct navigation schemes.
+- Permission center baseline with persisted Ask/Allow/Deny controls.
+- Compatibility harness baseline via one-click top-sites suite execution.
+- Stabilization step: reopen-closed-tab support and repeated crash reset fallback.
 
 These improve baseline usability but do not yet close the production-readiness gaps listed below.
 

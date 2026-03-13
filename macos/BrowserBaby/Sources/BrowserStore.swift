@@ -10,6 +10,18 @@ final class BrowserStore: NSObject, ObservableObject {
         case ignored
     }
 
+    struct CompatibilitySite: Identifiable, Hashable, Codable {
+        let id: UUID
+        var name: String
+        var url: URL
+
+        init(id: UUID = UUID(), name: String, url: URL) {
+            self.id = id
+            self.name = name
+            self.url = url
+        }
+    }
+
     @Published var tabs: [BrowserTab] = [] {
         didSet { schedulePersistSession() }
     }
@@ -25,16 +37,29 @@ final class BrowserStore: NSObject, ObservableObject {
     @Published var defaultPrivateModeEnabled: Bool = false {
         didSet { schedulePersistSession() }
     }
+    @Published var permissionStates: [PermissionKind: PermissionState] = BrowserStore.defaultPermissionStates() {
+        didSet { schedulePersistSession() }
+    }
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
     @Published var downloads: [DownloadItem] = []
     @Published var lastNavigationWarning: String?
+
+    private(set) var compatibilitySites: [CompatibilitySite] = [
+        CompatibilitySite(name: "Google Docs", url: URL(string: "https://docs.google.com")!),
+        CompatibilitySite(name: "Gmail", url: URL(string: "https://mail.google.com")!),
+        CompatibilitySite(name: "Slack", url: URL(string: "https://app.slack.com")!),
+        CompatibilitySite(name: "GitHub", url: URL(string: "https://github.com")!),
+        CompatibilitySite(name: "YouTube", url: URL(string: "https://www.youtube.com")!)
+    ]
 
     private let webViewPool = WebViewPool(maxLiveViews: 6)
     private var tabIDByWebView: [ObjectIdentifier: UUID] = [:]
     private let sessionPersistence = SessionPersistence()
     private var persistenceTask: Task<Void, Never>?
     private var downloadIDByObjectID: [ObjectIdentifier: UUID] = [:]
+    private var recentlyClosedTabs: [BrowserTab] = []
+    private var terminationCountByTabID: [UUID: Int] = [:]
 
     init(seedData: Bool = true) {
         super.init()
@@ -46,7 +71,11 @@ final class BrowserStore: NSObject, ObservableObject {
         guard seedData else { return }
         let folder = TabFolder(name: "Work")
         folders = [folder]
-        let sampleTab = BrowserTab(title: "BrowserBaby", baseURL: URL(string: "https://example.com")!, folderID: folder.id)
+        let sampleTab = BrowserTab(
+            title: "BrowserBaby",
+            baseURL: URL(string: "https://example.com")!,
+            folderID: folder.id
+        )
         tabs = [sampleTab]
         selectedTabID = sampleTab.id
     }
@@ -56,7 +85,20 @@ final class BrowserStore: NSObject, ObservableObject {
     }
 
     func addTab(in folderID: UUID? = nil, url: URL = URL(string: "https://example.com")!, isPrivate: Bool? = nil) {
-        let tab = BrowserTab(title: "New Tab", baseURL: url, isPrivate: isPrivate ?? defaultPrivateModeEnabled, engine: defaultEngine, folderID: folderID)
+        let tab = BrowserTab(
+            title: "New Tab",
+            baseURL: url,
+            isPrivate: isPrivate ?? defaultPrivateModeEnabled,
+            engine: defaultEngine,
+            folderID: folderID
+        )
+        tabs.append(tab)
+        selectTab(tab.id)
+    }
+
+    func reopenLastClosedTab() {
+        guard let tab = recentlyClosedTabs.first else { return }
+        recentlyClosedTabs.removeFirst()
         tabs.append(tab)
         selectTab(tab.id)
     }
@@ -91,6 +133,20 @@ final class BrowserStore: NSObject, ObservableObject {
         togglePinned(selectedTabID)
     }
 
+    func setPermissionState(_ state: PermissionState, for kind: PermissionKind) {
+        permissionStates[kind] = state
+    }
+
+    func cyclePermissionState(_ kind: PermissionKind) {
+        var state = permissionStates[kind] ?? .ask
+        state.cycle()
+        permissionStates[kind] = state
+    }
+
+    func resetPermissionStates() {
+        permissionStates = Self.defaultPermissionStates()
+    }
+
     func toggleFolderPin(tabID: UUID, folderID: UUID) {
         guard let index = folders.firstIndex(where: { $0.id == folderID }) else { return }
         if folders[index].pinnedTabIDs.contains(tabID) {
@@ -109,8 +165,11 @@ final class BrowserStore: NSObject, ObservableObject {
             return .resetPinned
         }
 
+        recentlyClosedTabs.insert(tab, at: 0)
+        recentlyClosedTabs = Array(recentlyClosedTabs.prefix(20))
         tabs.removeAll { $0.id == tabID }
         webViewPool.release(tabID: tabID)
+        terminationCountByTabID.removeValue(forKey: tabID)
 
         if selectedTabID == tabID {
             selectedTabID = tabs.sorted(by: { $0.lastAccessedAt > $1.lastAccessedAt }).first?.id
@@ -121,6 +180,7 @@ final class BrowserStore: NSObject, ObservableObject {
 
     func resetTab(_ tabID: UUID) {
         guard let tab = tabs.first(where: { $0.id == tabID }) else { return }
+        terminationCountByTabID[tabID] = 0
         updateTab(tabID) {
             $0.currentURL = tab.baseURL
             $0.lastAccessedAt = .now
@@ -174,6 +234,23 @@ final class BrowserStore: NSObject, ObservableObject {
         let webView = webView(for: tab.id, initialURL: tab.currentURL)
         webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 30))
         updateNavigationState(for: webView)
+    }
+
+    func runCompatibilitySuite() {
+        guard !compatibilitySites.isEmpty else { return }
+
+        let folderID: UUID
+        if let existing = folders.first(where: { $0.name == "Compatibility QA" })?.id {
+            folderID = existing
+        } else {
+            let folder = TabFolder(name: "Compatibility QA")
+            folders.append(folder)
+            folderID = folder.id
+        }
+
+        for site in compatibilitySites {
+            addTab(in: folderID, url: site.url)
+        }
     }
 
     func goBackSelectedTab() {
@@ -260,6 +337,10 @@ final class BrowserStore: NSObject, ObservableObject {
         return downloadsDirectory().appendingPathComponent(filename)
     }
 
+    private static func defaultPermissionStates() -> [PermissionKind: PermissionState] {
+        Dictionary(uniqueKeysWithValues: PermissionKind.allCases.map { ($0, .ask) })
+    }
+
     private func schedulePersistSession() {
         persistenceTask?.cancel()
         let snapshot = BrowserSessionSnapshot(
@@ -267,7 +348,9 @@ final class BrowserStore: NSObject, ObservableObject {
             folders: folders,
             selectedTabID: selectedTabID,
             defaultEngine: defaultEngine,
-            defaultPrivateModeEnabled: defaultPrivateModeEnabled
+            defaultPrivateModeEnabled: defaultPrivateModeEnabled,
+            permissionStates: permissionStates,
+            recentlyClosedTabs: recentlyClosedTabs
         )
         persistenceTask = Task { [sessionPersistence] in
             try? await Task.sleep(for: .milliseconds(350))
@@ -285,6 +368,8 @@ final class BrowserStore: NSObject, ObservableObject {
         folders = snapshot.folders
         defaultEngine = snapshot.defaultEngine
         defaultPrivateModeEnabled = snapshot.defaultPrivateModeEnabled
+        permissionStates = snapshot.permissionStates
+        recentlyClosedTabs = snapshot.recentlyClosedTabs
 
         if let selectedTabID = snapshot.selectedTabID,
            tabs.contains(where: { $0.id == selectedTabID }) {
@@ -298,7 +383,13 @@ final class BrowserStore: NSObject, ObservableObject {
 
     private func webView(for tabID: UUID, initialURL: URL) -> WKWebView {
         let isPrivate = tabs.first(where: { $0.id == tabID })?.isPrivate ?? false
-        let webView = webViewPool.webView(for: tabID, initialURL: initialURL, isPrivate: isPrivate, navigationDelegate: self, uiDelegate: self)
+        let webView = webViewPool.webView(
+            for: tabID,
+            initialURL: initialURL,
+            isPrivate: isPrivate,
+            navigationDelegate: self,
+            uiDelegate: self
+        )
         tabIDByWebView[ObjectIdentifier(webView)] = tabID
         updateNavigationState(for: webView)
         return webView
@@ -347,6 +438,7 @@ extension BrowserStore: WKNavigationDelegate {
         let webViewID = ObjectIdentifier(webView)
         guard let tabID = tabIDByWebView[webViewID] else { return }
 
+        terminationCountByTabID[tabID] = 0
         updateTab(tabID) { tab in
             if let url = webView.url {
                 tab.currentURL = url
@@ -364,11 +456,28 @@ extension BrowserStore: WKNavigationDelegate {
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        let webViewID = ObjectIdentifier(webView)
+        if let tabID = tabIDByWebView[webViewID] {
+            let count = (terminationCountByTabID[tabID] ?? 0) + 1
+            terminationCountByTabID[tabID] = count
+            if count >= 3 {
+                lastNavigationWarning = "Tab process crashed repeatedly. Resetting tab to base URL."
+                terminationCountByTabID[tabID] = 0
+                resetTab(tabID)
+                return
+            }
+        }
+        lastNavigationWarning = "Tab process terminated unexpectedly. Reloading."
         webView.reload()
     }
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
-        startTracking(download: download, response: navigationAction.request.url.flatMap { URLResponse(url: $0, mimeType: nil, expectedContentLength: 0, textEncodingName: nil) })
+        startTracking(
+            download: download,
+            response: navigationAction.request.url.flatMap {
+                URLResponse(url: $0, mimeType: nil, expectedContentLength: 0, textEncodingName: nil)
+            }
+        )
     }
 
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {

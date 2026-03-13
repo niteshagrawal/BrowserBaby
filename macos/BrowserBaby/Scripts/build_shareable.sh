@@ -10,16 +10,15 @@ ZIP_PATH="build/BrowserBaby-macOS.zip"
 
 mkdir -p build
 
-if [ ! -d "BrowserBaby.xcodeproj" ]; then
-  echo "Generating project with xcodegen..."
-  xcodegen generate --spec project.yml
-fi
+echo "Generating project with xcodegen..."
+xcodegen generate --spec project.yml
 
 xcodebuild archive \
   -project BrowserBaby.xcodeproj \
   -scheme "$SCHEME" \
   -configuration "$CONFIGURATION" \
   -archivePath "$ARCHIVE_PATH" \
+  -derivedDataPath build/DerivedData \
   -destination 'platform=macOS' \
   SKIP_INSTALL=NO \
   BUILD_LIBRARY_FOR_DISTRIBUTION=YES

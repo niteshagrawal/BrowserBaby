@@ -45,6 +45,11 @@ struct ContentView: View {
                     }
                 }
 
+                Section("Compatibility") {
+                    Button("Run Top Sites Suite") {
+                        store.runCompatibilitySuite()
+                    }
+                }
                 Section("All Tabs") {
                     ForEach(store.tabs.filter { $0.folderID == nil && !$0.isFavorite && !$0.isPinned }) { tabRow($0) }
                 }
@@ -126,6 +131,15 @@ struct ContentView: View {
                                 .foregroundStyle(.purple)
                         }
 
+                        Menu("Permissions") {
+                            ForEach(PermissionKind.allCases) { kind in
+                                Button("\(kind.displayName): \((store.permissionStates[kind] ?? .ask).rawValue.capitalized)") {
+                                    store.cyclePermissionState(kind)
+                                }
+                            }
+                            Divider()
+                            Button("Reset") { store.resetPermissionStates() }
+                        }
                         Button("Clear Data") {
                             store.clearRegularBrowsingData()
                         }
@@ -150,7 +164,17 @@ struct ContentView: View {
                         .pickerStyle(.menu)
                     }
             } else {
-                ContentUnavailableView("No Tab Selected", systemImage: "globe")
+                VStack(spacing: 12) {
+                    Image(systemName: "globe")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.secondary)
+                    Text("No Tab Selected")
+                        .font(.headline)
+                    Text("Open a tab or choose one from the sidebar.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }

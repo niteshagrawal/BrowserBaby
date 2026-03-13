@@ -21,6 +21,10 @@ struct BrowserBabyApp: App {
                 }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
 
+                Button("Reopen Closed Tab") {
+                    store.reopenLastClosedTab()
+                }
+                .keyboardShortcut("y", modifiers: [.command, .shift])
                 Button("Close Tab") {
                     store.closeSelectedTab()
                 }
@@ -41,8 +45,6 @@ struct BrowserBabyApp: App {
                 .keyboardShortcut("p", modifiers: [.command, .shift])
                 .disabled(store.selectedTabID == nil)
             }
-
-
             CommandMenu("Navigate") {
                 Button("Back") {
                     store.goBackSelectedTab()
@@ -63,6 +65,11 @@ struct BrowserBabyApp: App {
                 .disabled(store.selectedTabID == nil)
             }
 
+            CommandMenu("Compatibility") {
+                Button("Run Top Sites Suite") {
+                    store.runCompatibilitySuite()
+                }
+            }
 
             CommandMenu("Downloads") {
                 Button("Open Downloads Folder") {
@@ -75,6 +82,17 @@ struct BrowserBabyApp: App {
                 .disabled(!store.downloads.contains(where: { $0.state == .finished }))
             }
 
+            CommandMenu("Permissions") {
+                ForEach(PermissionKind.allCases) { kind in
+                    Button("\(kind.displayName): \((store.permissionStates[kind] ?? .ask).rawValue.capitalized)") {
+                        store.cyclePermissionState(kind)
+                    }
+                }
+                Divider()
+                Button("Reset Permissions") {
+                    store.resetPermissionStates()
+                }
+            }
             CommandMenu("Privacy") {
                 Button(store.defaultPrivateModeEnabled ? "Disable Default Private Mode" : "Enable Default Private Mode") {
                     store.toggleDefaultPrivateMode()
