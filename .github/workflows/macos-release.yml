@@ -1,0 +1,32 @@
+name: macOS Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: macos/BrowserBaby
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate --spec project.yml
+
+      - name: Build archive and zip
+        run: ./Scripts/build_shareable.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BrowserBaby-macOS
+          path: macos/BrowserBaby/build/BrowserBaby-macOS.zip

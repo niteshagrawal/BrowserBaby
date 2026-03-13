@@ -1,0 +1,40 @@
+name: BrowserBaby
+options:
+  bundleIdPrefix: com.browserbaby
+  deploymentTarget:
+    macOS: "13.0"
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.browserbaby.app
+    SWIFT_VERSION: 5.9
+    MACOSX_DEPLOYMENT_TARGET: 13.0
+packages: {}
+targets:
+  BrowserBaby:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_NAME: BrowserBaby
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © BrowserBaby
+        INFOPLIST_KEY_CFBundleDisplayName: BrowserBaby
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    preBuildScripts: []
+    postCompileScripts: []
+    postBuildScripts: []
+
+  BrowserBabyTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+    dependencies:
+      - target: BrowserBaby
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.browserbaby.app.tests
+        GENERATE_INFOPLIST_FILE: YES
