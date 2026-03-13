@@ -26,3 +26,15 @@ targets:
     preBuildScripts: []
     postCompileScripts: []
     postBuildScripts: []
+
+  BrowserBabyTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+    dependencies:
+      - target: BrowserBaby
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.browserbaby.app.tests
+        GENERATE_INFOPLIST_FILE: YES

@@ -22,6 +22,8 @@ For a concrete gap analysis and milestone plan, see `docs/daily-driver-readiness
 - Basic crash resilience: if a web content process is terminated, the tab automatically reloads.
 - Productivity shortcuts: Command+T (new tab), Shift+Command+T (new private tab), Command+W (close selected tab), Shift+Command+D (toggle favorite), Shift+Command+P (toggle pin).
 - Privacy baseline: private tabs now use non-persistent website data storage, with default private-mode toggle and a command to clear regular browsing data.
+- Debounced session persistence to reduce disk write churn during heavy tab/navigation activity.
+- Introduced unit-test targets for tab close semantics and session/model backward compatibility.
 
 ## Included in this repo
 

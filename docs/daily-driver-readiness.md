@@ -17,6 +17,8 @@ The following foundational items have now been started in code:
 
 These improve baseline usability but do not yet close the production-readiness gaps listed below.
 
+Recent engineering refinements also include debounced session persistence to limit write amplification under heavy use, and initial unit tests for close behavior and backward-compatible decoding.
+
 ## What is already in place
 
 - macOS app shell with SwiftUI + WebKit.

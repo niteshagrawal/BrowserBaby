@@ -3,25 +3,32 @@ import WebKit
 
 @MainActor
 final class BrowserStore: NSObject, ObservableObject {
+    enum TabCloseOutcome: Equatable {
+        case closed
+        case resetPinned
+        case ignored
+    }
+
     @Published var tabs: [BrowserTab] = [] {
-        didSet { persistSession() }
+        didSet { schedulePersistSession() }
     }
     @Published var folders: [TabFolder] = [] {
-        didSet { persistSession() }
+        didSet { schedulePersistSession() }
     }
     @Published var selectedTabID: UUID? {
-        didSet { persistSession() }
+        didSet { schedulePersistSession() }
     }
     @Published var defaultEngine: BrowserEngine = .webkit {
-        didSet { persistSession() }
+        didSet { schedulePersistSession() }
     }
     @Published var defaultPrivateModeEnabled: Bool = false {
-        didSet { persistSession() }
+        didSet { schedulePersistSession() }
     }
 
     private let webViewPool = WebViewPool(maxLiveViews: 6)
     private var tabIDByWebView: [ObjectIdentifier: UUID] = [:]
     private let sessionPersistence = SessionPersistence()
+    private var persistenceTask: Task<Void, Never>?
 
     init(seedData: Bool = true) {
         super.init()
@@ -38,6 +45,10 @@ final class BrowserStore: NSObject, ObservableObject {
         selectedTabID = sampleTab.id
     }
 
+    deinit {
+        persistenceTask?.cancel()
+    }
+
     func addTab(in folderID: UUID? = nil, url: URL = URL(string: "https://example.com")!, isPrivate: Bool? = nil) {
         let tab = BrowserTab(title: "New Tab", baseURL: url, isPrivate: isPrivate ?? defaultPrivateModeEnabled, engine: defaultEngine, folderID: folderID)
         tabs.append(tab)
@@ -46,7 +57,7 @@ final class BrowserStore: NSObject, ObservableObject {
 
     func closeSelectedTab() {
         guard let selectedTabID else { return }
-        closeTab(selectedTabID)
+        _ = closeTab(selectedTabID)
     }
 
     func selectTab(_ tabID: UUID) {
@@ -79,12 +90,13 @@ final class BrowserStore: NSObject, ObservableObject {
         }
     }
 
-    func closeTab(_ tabID: UUID) {
-        guard let tab = tabs.first(where: { $0.id == tabID }) else { return }
+    @discardableResult
+    func closeTab(_ tabID: UUID) -> TabCloseOutcome {
+        guard let tab = tabs.first(where: { $0.id == tabID }) else { return .ignored }
 
         if isFolderPinned(tabID: tabID, folderID: tab.folderID) || tab.isPinned {
             resetTab(tabID)
-            return
+            return .resetPinned
         }
 
         tabs.removeAll { $0.id == tabID }
@@ -94,6 +106,7 @@ final class BrowserStore: NSObject, ObservableObject {
             selectedTabID = tabs.sorted(by: { $0.lastAccessedAt > $1.lastAccessedAt }).first?.id
         }
         trimInactiveTabs()
+        return .closed
     }
 
     func resetTab(_ tabID: UUID) {
@@ -113,7 +126,6 @@ final class BrowserStore: NSObject, ObservableObject {
         updateTab(tabID) { $0.engine = engine == .chromium ? .webkit : engine }
     }
 
-
     func toggleDefaultPrivateMode() {
         defaultPrivateModeEnabled.toggle()
     }
@@ -130,7 +142,8 @@ final class BrowserStore: NSObject, ObservableObject {
         return webView(for: selectedTabID, initialURL: tab.currentURL)
     }
 
-    func persistSession() {
+    private func schedulePersistSession() {
+        persistenceTask?.cancel()
         let snapshot = BrowserSessionSnapshot(
             tabs: tabs,
             folders: folders,
@@ -138,7 +151,11 @@ final class BrowserStore: NSObject, ObservableObject {
             defaultEngine: defaultEngine,
             defaultPrivateModeEnabled: defaultPrivateModeEnabled
         )
-        sessionPersistence.save(snapshot: snapshot)
+        persistenceTask = Task { [sessionPersistence] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            sessionPersistence.save(snapshot: snapshot)
+        }
     }
 
     private func restoreSession() -> Bool {
