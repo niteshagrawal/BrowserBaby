@@ -4,20 +4,11 @@ struct ContentView: View {
     @EnvironmentObject private var store: BrowserStore
     @State private var addressInput = ""
     @State private var findInput = ""
-
-    private var selectionBinding: Binding<UUID?> {
-        Binding(
-            get: { store.selectedTabID },
-            set: { newValue in
-                guard let id = newValue else { return }
-                store.selectTab(id)
-            }
-        )
-    }
+    @State private var sidebarSelection: UUID?
 
     var body: some View {
         NavigationSplitView {
-            List(selection: selectionBinding) {
+            List(selection: $sidebarSelection) {
                 Section("Favorites") {
                     ForEach(store.tabs.filter(\.isFavorite)) { tabRow($0) }
                 }
@@ -54,115 +45,137 @@ struct ContentView: View {
                     ForEach(store.tabs.filter { $0.folderID == nil && !$0.isFavorite && !$0.isPinned }) { tabRow($0) }
                 }
             }
+            .onAppear {
+                sidebarSelection = store.selectedTabID
+            }
+            .onChange(of: sidebarSelection) { newValue in
+                guard let id = newValue, id != store.selectedTabID else { return }
+                Task { @MainActor in
+                    store.selectTab(id)
+                }
+            }
+            .onChange(of: store.selectedTabID) { newValue in
+                guard sidebarSelection != newValue else { return }
+                sidebarSelection = newValue
+            }
             .toolbar {
                 Button("New Tab") { store.addTab() }
             }
             .frame(minWidth: 300)
         } detail: {
             if let selectedID = store.selectedTabID,
-               let selectedTab = store.tabs.first(where: { $0.id == selectedID }),
-               let webView = store.activeWebView() {
-                WebViewContainer(webView: webView)
-                    .overlay(alignment: .top) {
-                        if let warning = store.lastNavigationWarning {
-                            Text(warning)
-                                .font(.caption)
-                                .padding(8)
-                                .background(.red.opacity(0.9), in: Capsule())
-                                .foregroundStyle(.white)
-                                .padding(.top, 8)
-                        }
-                    }
-                    .onAppear {
-                        addressInput = selectedTab.currentURL.absoluteString
-                    }
-                    .onChange(of: selectedID) { _ in
-                        addressInput = selectedTab.currentURL.absoluteString
-                        findInput = ""
-                    }
-                    .onChange(of: selectedTab.currentURL) { newURL in
-                        addressInput = newURL.absoluteString
-                    }
-                    .toolbar {
-                        Button {
-                            store.goBackSelectedTab()
-                        } label: {
-                            Label("Back", systemImage: "chevron.backward")
-                        }
-                        .disabled(!store.canGoBack)
-
-                        Button {
-                            store.goForwardSelectedTab()
-                        } label: {
-                            Label("Forward", systemImage: "chevron.forward")
-                        }
-                        .disabled(!store.canGoForward)
-
-                        Button {
-                            store.reloadSelectedTab()
-                        } label: {
-                            Label("Reload", systemImage: "arrow.clockwise")
-                        }
-
-                        TextField("Search or enter website name", text: $addressInput)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(minWidth: 360)
-                            .onSubmit {
-                                store.navigateSelectedTab(input: addressInput)
-                            }
-
-                        TextField("Find in page", text: $findInput)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 180)
-                            .onSubmit {
-                                store.findInSelectedTab(findInput)
-                            }
-
-                        Toggle(isOn: Binding(
-                            get: { store.defaultPrivateModeEnabled },
-                            set: { store.defaultPrivateModeEnabled = $0 }
-                        )) {
-                            Label("Default Private", systemImage: "eye.slash")
-                        }
-                        .toggleStyle(.checkbox)
-
-                        if selectedTab.isPrivate {
-                            Label("Private Tab", systemImage: "eye.slash.fill")
-                                .foregroundStyle(.purple)
-                        }
-
-                        Menu("Permissions") {
-                            ForEach(PermissionKind.allCases) { kind in
-                                Button("\(kind.displayName): \((store.permissionStates[kind] ?? .ask).rawValue.capitalized)") {
-                                    store.cyclePermissionState(kind)
+               let selectedTab = store.tabs.first(where: { $0.id == selectedID }) {
+                Group {
+                    if let webView = store.selectedTabWebView() {
+                        WebViewContainer(webView: webView)
+                            .overlay(alignment: .top) {
+                                if let warning = store.lastNavigationWarning {
+                                    Text(warning)
+                                        .font(.caption)
+                                        .padding(8)
+                                        .background(.red.opacity(0.9), in: Capsule())
+                                        .foregroundStyle(.white)
+                                        .padding(.top, 8)
                                 }
                             }
-                            Divider()
-                            Button("Reset") { store.resetPermissionStates() }
-                        }
-                        Button("Clear Data") {
-                            store.clearRegularBrowsingData()
+                    } else {
+                        ProgressView("Loading tab...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .task(id: selectedID) {
+                    store.prepareSelectedTabWebView()
+                }
+                .onAppear {
+                    addressInput = selectedTab.currentURL.absoluteString
+                }
+                .onChange(of: selectedID) { _ in
+                    addressInput = selectedTab.currentURL.absoluteString
+                    findInput = ""
+                }
+                .onChange(of: selectedTab.currentURL) { newURL in
+                    addressInput = newURL.absoluteString
+                }
+                .toolbar {
+                    Button {
+                        store.goBackSelectedTab()
+                    } label: {
+                        Label("Back", systemImage: "chevron.backward")
+                    }
+                    .disabled(!store.canGoBack)
+
+                    Button {
+                        store.goForwardSelectedTab()
+                    } label: {
+                        Label("Forward", systemImage: "chevron.forward")
+                    }
+                    .disabled(!store.canGoForward)
+
+                    Button {
+                        store.reloadSelectedTab()
+                    } label: {
+                        Label("Reload", systemImage: "arrow.clockwise")
+                    }
+
+                    TextField("Search or enter website name", text: $addressInput)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(minWidth: 360)
+                        .onSubmit {
+                            store.navigateSelectedTab(input: addressInput)
                         }
 
-                        Button("Downloads Folder") {
-                            store.openDownloadsFolder()
+                    TextField("Find in page", text: $findInput)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 180)
+                        .onSubmit {
+                            store.findInSelectedTab(findInput)
                         }
 
-                        Button("Clear Finished") {
-                            store.clearFinishedDownloads()
-                        }
-                        .disabled(!store.downloads.contains(where: { $0.state == .finished }))
+                    Toggle(isOn: Binding(
+                        get: { store.defaultPrivateModeEnabled },
+                        set: { store.defaultPrivateModeEnabled = $0 }
+                    )) {
+                        Label("Default Private", systemImage: "eye.slash")
+                    }
+                    .toggleStyle(.checkbox)
 
-                        Picker("Engine", selection: Binding(
-                            get: { selectedTab.engine },
-                            set: { store.setEngine($0, for: selectedID) }
-                        )) {
-                            ForEach(BrowserEngine.allCases) { engine in
-                                Text(engine.displayName).tag(engine)
+                    if selectedTab.isPrivate {
+                        Label("Private Tab", systemImage: "eye.slash.fill")
+                            .foregroundStyle(.purple)
+                    }
+
+                    Menu("Permissions") {
+                        ForEach(PermissionKind.allCases) { kind in
+                            Button("\(kind.displayName): \((store.permissionStates[kind] ?? .ask).rawValue.capitalized)") {
+                                store.cyclePermissionState(kind)
                             }
                         }
-                        .pickerStyle(.menu)
+                        Divider()
+                        Button("Reset") { store.resetPermissionStates() }
                     }
+                    Button("Clear Data") {
+                        store.clearRegularBrowsingData()
+                    }
+
+                    Button("Downloads Folder") {
+                        store.openDownloadsFolder()
+                    }
+
+                    Button("Clear Finished") {
+                        store.clearFinishedDownloads()
+                    }
+                    .disabled(!store.downloads.contains(where: { $0.state == .finished }))
+
+                    Picker("Engine", selection: Binding(
+                        get: { selectedTab.engine },
+                        set: { store.setEngine($0, for: selectedID) }
+                    )) {
+                        ForEach(BrowserEngine.allCases) { engine in
+                            Text(engine.displayName).tag(engine)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "globe")

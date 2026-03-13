@@ -205,11 +205,22 @@ final class BrowserStore: NSObject, ObservableObject {
         WKWebsiteDataStore.default().removeData(ofTypes: allDataTypes, modifiedSince: .distantPast) {}
     }
 
-    func activeWebView() -> WKWebView? {
+    func selectedTabWebView() -> WKWebView? {
+        guard let selectedTabID else { return nil }
+        return webViewPool.existingWebView(for: selectedTabID)
+    }
+
+    func prepareSelectedTabWebView() {
         guard let selectedTabID, let tab = tabs.first(where: { $0.id == selectedTabID }) else {
-            return nil
+            return
         }
-        return webView(for: selectedTabID, initialURL: tab.currentURL)
+
+        if let webView = webViewPool.existingWebView(for: selectedTabID) {
+            updateNavigationState(for: webView)
+        } else {
+            _ = webView(for: selectedTabID, initialURL: tab.currentURL)
+        }
+        trimInactiveTabs()
     }
 
     func navigateSelectedTab(input: String) {
@@ -254,24 +265,24 @@ final class BrowserStore: NSObject, ObservableObject {
     }
 
     func goBackSelectedTab() {
-        guard let webView = activeWebView(), webView.canGoBack else { return }
+        guard let webView = selectedTabWebView(), webView.canGoBack else { return }
         webView.goBack()
         updateNavigationState(for: webView)
     }
 
     func goForwardSelectedTab() {
-        guard let webView = activeWebView(), webView.canGoForward else { return }
+        guard let webView = selectedTabWebView(), webView.canGoForward else { return }
         webView.goForward()
         updateNavigationState(for: webView)
     }
 
     func reloadSelectedTab() {
-        guard let webView = activeWebView() else { return }
+        guard let webView = selectedTabWebView() else { return }
         webView.reload()
     }
 
     func findInSelectedTab(_ query: String) {
-        guard let webView = activeWebView() else { return }
+        guard let webView = selectedTabWebView() else { return }
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return }
 
