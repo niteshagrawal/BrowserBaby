@@ -3,16 +3,29 @@ import WebKit
 
 @MainActor
 final class BrowserStore: NSObject, ObservableObject {
-    @Published var tabs: [BrowserTab] = []
-    @Published var folders: [TabFolder] = []
-    @Published var selectedTabID: UUID?
-    @Published var defaultEngine: BrowserEngine = .webkit
+    @Published var tabs: [BrowserTab] = [] {
+        didSet { persistSession() }
+    }
+    @Published var folders: [TabFolder] = [] {
+        didSet { persistSession() }
+    }
+    @Published var selectedTabID: UUID? {
+        didSet { persistSession() }
+    }
+    @Published var defaultEngine: BrowserEngine = .webkit {
+        didSet { persistSession() }
+    }
 
     private let webViewPool = WebViewPool(maxLiveViews: 6)
     private var tabIDByWebView: [ObjectIdentifier: UUID] = [:]
+    private let sessionPersistence = SessionPersistence()
 
     init(seedData: Bool = true) {
         super.init()
+
+        if restoreSession() {
+            return
+        }
 
         guard seedData else { return }
         let folder = TabFolder(name: "Work")
@@ -28,6 +41,11 @@ final class BrowserStore: NSObject, ObservableObject {
         selectTab(tab.id)
     }
 
+    func closeSelectedTab() {
+        guard let selectedTabID else { return }
+        closeTab(selectedTabID)
+    }
+
     func selectTab(_ tabID: UUID) {
         updateTab(tabID) { $0.lastAccessedAt = .now }
         selectedTabID = tabID
@@ -38,6 +56,16 @@ final class BrowserStore: NSObject, ObservableObject {
 
     func toggleFavorite(_ tabID: UUID) { updateTab(tabID) { $0.isFavorite.toggle() } }
     func togglePinned(_ tabID: UUID) { updateTab(tabID) { $0.isPinned.toggle() } }
+
+    func toggleFavoriteForSelection() {
+        guard let selectedTabID else { return }
+        toggleFavorite(selectedTabID)
+    }
+
+    func togglePinnedForSelection() {
+        guard let selectedTabID else { return }
+        togglePinned(selectedTabID)
+    }
 
     func toggleFolderPin(tabID: UUID, folderID: UUID) {
         guard let index = folders.firstIndex(where: { $0.id == folderID }) else { return }
@@ -89,12 +117,40 @@ final class BrowserStore: NSObject, ObservableObject {
         return webView(for: selectedTabID, initialURL: tab.currentURL)
     }
 
+    func persistSession() {
+        let snapshot = BrowserSessionSnapshot(
+            tabs: tabs,
+            folders: folders,
+            selectedTabID: selectedTabID,
+            defaultEngine: defaultEngine
+        )
+        sessionPersistence.save(snapshot: snapshot)
+    }
+
+    private func restoreSession() -> Bool {
+        guard let snapshot = sessionPersistence.load(), !snapshot.tabs.isEmpty else {
+            return false
+        }
+
+        tabs = snapshot.tabs
+        folders = snapshot.folders
+        defaultEngine = snapshot.defaultEngine
+
+        if let selectedTabID = snapshot.selectedTabID,
+           tabs.contains(where: { $0.id == selectedTabID }) {
+            self.selectedTabID = selectedTabID
+        } else {
+            self.selectedTabID = tabs.max(by: { $0.lastAccessedAt < $1.lastAccessedAt })?.id
+        }
+
+        return true
+    }
+
     private func webView(for tabID: UUID, initialURL: URL) -> WKWebView {
         let webView = webViewPool.webView(for: tabID, initialURL: initialURL, navigationDelegate: self, uiDelegate: self)
         tabIDByWebView[ObjectIdentifier(webView)] = tabID
         return webView
     }
-
 
     private func trimInactiveTabs() {
         var protectedIDs: Set<UUID> = Set(tabs.filter(\.isPinned).map(\.id))
@@ -130,6 +186,10 @@ extension BrowserStore: WKNavigationDelegate {
             }
             tab.lastAccessedAt = .now
         }
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        webView.reload()
     }
 }
 

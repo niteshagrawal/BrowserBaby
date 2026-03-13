@@ -16,6 +16,12 @@ Not yet. This repository is currently a prototype and pre-production foundation.
 
 For a concrete gap analysis and milestone plan, see `docs/daily-driver-readiness.md`.
 
+## Recently implemented next steps
+
+- Session persistence + restore: tabs, folders, selected tab, and default engine are now saved and reloaded on launch.
+- Basic crash resilience: if a web content process is terminated, the tab automatically reloads.
+- Productivity shortcuts: Command+T (new tab), Command+W (close selected tab), Shift+Command+D (toggle favorite), Shift+Command+P (toggle pin).
+
 ## Included in this repo
 
 - Native SwiftUI + WebKit macOS app scaffold.

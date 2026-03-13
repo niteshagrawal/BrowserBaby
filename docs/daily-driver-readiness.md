@@ -6,6 +6,16 @@ No — BrowserBaby is not yet production-ready as a daily-driver browser.
 
 The current codebase is a solid prototype for Arc-style UX exploration, but it still lacks several reliability, security, compatibility, and operational capabilities required for safe primary-browser usage.
 
+## Progress update
+
+The following foundational items have now been started in code:
+
+- Session persistence and launch-time session restore.
+- Automatic reload when `WKWebView` web content process terminates.
+- Keyboard shortcuts for frequent tab actions.
+
+These improve baseline usability but do not yet close the production-readiness gaps listed below.
+
 ## What is already in place
 
 - macOS app shell with SwiftUI + WebKit.
